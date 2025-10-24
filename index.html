@@ -18,13 +18,68 @@
         button:disabled {
             background-color: #d1d5db; /* gray-300 */
             cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        /* CSS untuk Struk (Print) */
+        .print-receipt {
+            font-family: 'Courier New', Courier, monospace;
+            color: #000;
+        }
+        .print-receipt h3 {
+            font-size: 1.5rem; /* 24px */
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 0.5rem; /* 8px */
+        }
+        .print-receipt p, .print-receipt .text-sm {
+            font-size: 0.875rem; /* 14px */
+            line-height: 1.25rem; /* 20px */
+        }
+        .print-receipt table {
+            width: 100%;
+        }
+        .print-receipt .text-left { text-align: left; }
+        .print-receipt .text-right { text-align: right; }
+        .print-receipt .border-dashed { border-style: dashed; }
+        .print-receipt .border-gray-400 { border-color: #9ca3af; }
+
+        /* Sembunyikan semua elemen KECUALI struk saat mencetak */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-preview-modal, #receipt-content, #receipt-content * {
+                visibility: visible;
+            }
+            #print-preview-modal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                max-width: 100%;
+                height: 100%;
+                background: none;
+                box-shadow: none;
+                padding: 0;
+                overflow: visible;
+            }
+            #print-preview-modal > div {
+                width: 100%;
+                max-width: 100%;
+                box-shadow: none;
+                border: none;
+            }
+            .print\:hidden {
+                display: none !important;
+            }
         }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
     <!-- ===== HEADER ADMIN ===== -->
-    <header class="bg-white shadow-md">
+    <header class="bg-white shadow-md print:hidden">
         <div class="container mx-auto max-w-7xl px-4 py-4 flex justify-between items-center">
             <h1 class="text-3xl font-extrabold text-gray-900">
                 Admin <span class="text-emerald-500">KafeKini</span>
@@ -44,7 +99,7 @@
     </header>
 
     <!-- ===== KONTEN ADMIN ===== -->
-    <main class="container mx-auto max-w-7xl p-4">
+    <main class="container mx-auto max-w-7xl p-4 print:hidden">
 
         <!-- ===== HALAMAN 1: PESANAN MASUK (Default) ===== -->
         <section id="admin-page-orders" class="admin-page-section active space-y-6">
@@ -65,7 +120,6 @@
                     <form id="menu-form" class="bg-white p-6 rounded-2xl shadow-lg space-y-4">
                         <h3 id="form-title" class="text-xl font-bold text-gray-900">Tambah Menu Baru</h3>
                         
-                        <!-- PERBAIKAN: Status koneksi -->
                         <div id="db-status" class="p-3 bg-yellow-50 text-yellow-700 rounded-lg text-sm">
                             Menunggu koneksi database siap...
                         </div>
@@ -103,7 +157,6 @@
                             <label for="menu-isPopular" class="ml-2 block text-sm font-medium text-gray-700">Tandai sebagai Populer</label>
                         </div>
                         <div class="flex space-x-2">
-                            <!-- PERBAIKAN: Tombol di-disable secara default -->
                             <button id="save-menu-button" type="submit" class="w-full bg-emerald-500 text-white font-bold py-3 rounded-lg hover:bg-emerald-600" disabled>
                                 Simpan Menu
                             </button>
@@ -140,8 +193,9 @@
             <!-- Detail -->
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 <h3 class="text-xl font-bold text-gray-900 mb-4">Riwayat Pesanan Selesai</h3>
-                <div id="report-details-container" class="space-y-3 max-h-96 overflow-y-auto">
-                    <!-- Riwayat dimuat di sini -->
+                <!-- BARU: Kontainer untuk daftar pesanan selesai -->
+                <div id="report-details-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
+                    <!-- Riwayat dimuat di sini oleh JS -->
                 </div>
             </div>
         </section>
@@ -149,9 +203,29 @@
     </main>
 
     <!-- ===== NOTIFIKASI KUSTOM ADMIN ===== -->
-    <div id="admin-notification" class="fixed top-5 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg" style="display: none; z-index: 100;">
+    <div id="admin-notification" class="fixed top-5 right-5 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg print:hidden" style="display: none; z-index: 100;">
         <span id="admin-notification-message"></span>
     </div>
+
+    <!-- ===== BARU: MODAL CETAK STRUK ===== -->
+    <div id="print-preview-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" style="display: none;">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <!-- Konten struk akan disuntikkan di sini -->
+            <div id="receipt-content" class="p-6">
+                <!-- Contoh: <div class="print-receipt">...</div> -->
+            </div>
+            <!-- Tombol aksi modal (tersembunyi saat print) -->
+            <div class="bg-gray-100 p-4 flex justify-end space-x-2 print:hidden">
+                <button onclick="closeReceiptModal()" class="font-medium py-2 px-4 rounded-lg transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    Batal
+                </button>
+                <button onclick="printReceipt()" class="font-medium py-2 px-4 rounded-lg transition-colors bg-emerald-500 text-white hover:bg-emerald-600">
+                    Cetak Struk
+                </button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Firebase SDK -->
     <script type="module">
@@ -163,9 +237,17 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // === KONFIGURASI FIREBASE ===
+        // GANTI DENGAN KONFIGURASI ASLI ANDA
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : {apiKey: "AIzaSyDWpnos_9NRj0LVA0J6KBf4bxNtWCXF7Xw", authDomain: "outlet-masdar.firebaseapp.com", projectId: "outlet-masdar", storageBucket: "outlet-masdar.firebasestorage.app", messagingSenderId: "661483386947", appId: "1:661483386947:web:0b2f26c227cb5fe130bcf6"}; // Fallback config
+            : {
+                apiKey: "...",
+                authDomain: "...",
+                projectId: "...",
+                storageBucket: "...",
+                messagingSenderId: "...",
+                appId: "..."
+              };
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -174,7 +256,6 @@
         let app, auth, db, userId;
         let menuCollection, ordersCollection;
 
-        // PERBAIKAN: Ambil referensi elemen UI
         const dbStatus = document.getElementById('db-status');
         const saveMenuButton = document.getElementById('save-menu-button');
 
@@ -183,29 +264,24 @@
             auth = getAuth(app);
             db = getFirestore(app);
 
-            // Path koleksi
             const basePath = `artifacts/${appId}/public/data`;
             menuCollection = collection(db, `${basePath}/menu`);
             ordersCollection = collection(db, `${basePath}/orders`);
 
-            // PERBAIKAN: Set persistensi agar login tidak hilang saat refresh
             await setPersistence(auth, browserLocalPersistence);
 
-            // Autentikasi
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     userId = user.uid;
                     console.log("Admin terautentikasi:", userId);
                     
-                    // Mulai memuat data setelah auth siap
                     listenToOrders();
                     listenToMenu();
 
-                    // PERBAIKAN: Aktifkan form setelah koneksi siap
                     dbStatus.textContent = 'Koneksi database siap!';
                     dbStatus.classList.remove('bg-yellow-50', 'text-yellow-700');
                     dbStatus.classList.add('bg-green-50', 'text-green-700');
-                    saveMenuButton.disabled = false; // Aktifkan tombol simpan
+                    saveMenuButton.disabled = false; 
 
                 } else {
                     dbStatus.textContent = 'Menghubungkan ke database...';
@@ -235,6 +311,7 @@
         let allMenu = [];
         let allOrders = [];
         let editingMenuId = null;
+        let currentOrderForReceipt = null; // BARU: Menyimpan order yg akan dicetak
 
         // === Fungsi Global ===
         window.showAdminPage = showAdminPage;
@@ -242,6 +319,11 @@
         window.editMenu = editMenu;
         window.deleteMenu = deleteMenu;
         window.resetMenuForm = resetMenuForm;
+        // BARU: Fungsi untuk modal struk
+        window.showReceiptModal = showReceiptModal;
+        window.closeReceiptModal = closeReceiptModal;
+        window.printReceipt = printReceipt;
+
 
         // Format Rupiah
         function formatRupiah(number) {
@@ -266,7 +348,7 @@
             
             currentAdminPage = pageId;
             if (pageId === 'reports') {
-                updateReports(); // Selalu update report saat tab dibuka
+                updateReports(); 
             }
         }
 
@@ -284,6 +366,7 @@
                 allOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
                 renderOrdersList();
+                // Selalu update laporan juga, karena data pesanan selesai mungkin berubah
                 updateReports(); 
 
             }, (error) => {
@@ -331,12 +414,12 @@
 
                         <div class="flex space-x-2">
                             ${order.status === 'Baru' ? `
-                                <button onclick="updateOrderStatus('${order.id}', 'Diproses')" class="w-full bg-yellow-500 text-white font-semibold py-2 rounded-lg hover:bg-yellow-600">
+                                <button onclick="updateOrderStatus(this, '${order.id}', 'Diproses')" class="w-full bg-yellow-500 text-white font-semibold py-2 rounded-lg hover:bg-yellow-600">
                                     Proses Pesanan
                                 </button>
                             ` : ''}
                             ${order.status === 'Diproses' ? `
-                                <button onclick="updateOrderStatus('${order.id}', 'Selesai')" class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">
+                                <button onclick="updateOrderStatus(this, '${order.id}', 'Selesai')" class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">
                                     Selesaikan Pesanan
                                 </button>
                             ` : ''}
@@ -346,16 +429,27 @@
             });
         }
 
-        async function updateOrderStatus(orderId, newStatus) {
+        // DIPERBARUI: Fungsi update status dengan umpan balik tombol
+        async function updateOrderStatus(buttonElement, orderId, newStatus) {
+            const originalText = buttonElement.innerText;
+            buttonElement.disabled = true;
+            buttonElement.innerText = 'Memperbarui...';
+
             try {
                 const orderRef = doc(db, ordersCollection.path, orderId);
                 await updateDoc(orderRef, { status: newStatus });
                 showAdminNotification(`Pesanan diperbarui ke ${newStatus}`);
+                // Tidak perlu re-enable tombol, onSnapshot akan menggambar ulang kartunya
+                // (baik mengubah tombolnya atau menghilangkannya jika status='Selesai')
             } catch (e) {
                 console.error("Gagal update status: ", e);
                 showAdminNotification('Gagal update status!', 'error');
+                // Aktifkan kembali tombol HANYA jika gagal, karena onSnapshot tidak akan jalan
+                buttonElement.disabled = false;
+                buttonElement.innerText = originalText;
             }
         }
+
 
         // === FUNGSI KELOLA MENU (CRUD) ===
         function listenToMenu() {
@@ -396,11 +490,9 @@
             });
         }
 
-        // Submit Form (Tambah / Update)
         document.getElementById('menu-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // Tombol di-disable saat proses
             saveMenuButton.disabled = true;
             saveMenuButton.innerText = 'Menyimpan...';
 
@@ -430,12 +522,10 @@
 
             try {
                 if (editingMenuId) {
-                    // Update
                     const menuRef = doc(db, menuCollection.path, editingMenuId);
                     await setDoc(menuRef, menuObject); 
                     showAdminNotification('Menu berhasil diperbarui!');
                 } else {
-                    // Tambah Baru
                     await addDoc(menuCollection, menuObject);
                     showAdminNotification('Menu baru berhasil ditambahkan!');
                 }
@@ -444,7 +534,6 @@
                 console.error("Gagal menyimpan menu: ", e);
                 showAdminNotification('Gagal menyimpan menu!', 'error');
             } finally {
-                // Aktifkan kembali tombol
                 saveMenuButton.disabled = false;
                 saveMenuButton.innerText = 'Simpan Menu';
             }
@@ -490,6 +579,7 @@
         }
 
         // === FUNGSI LAPORAN (REPORTS) ===
+        // DIPERBARUI: Fungsi ini sekarang juga merender daftar pesanan selesai
         function updateReports() {
             const completedOrders = allOrders.filter(order => order.status === 'Selesai');
             
@@ -499,6 +589,7 @@
             document.getElementById('report-total-revenue').innerText = formatRupiah(totalRevenue);
             document.getElementById('report-total-orders').innerText = totalCompleted;
 
+            // BARU: Render daftar pesanan selesai dengan tombol cetak
             const detailsContainer = document.getElementById('report-details-container');
             detailsContainer.innerHTML = '';
             if (completedOrders.length === 0) {
@@ -506,18 +597,96 @@
                 return;
             }
 
+            // Urutkan (sudah diurutkan di listenToOrders, tapi kita pastikan lagi)
+            completedOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+
             completedOrders.forEach(order => {
+                const itemsHtml = order.items.map(item => 
+                    `<li class="text-xs text-gray-500 truncate">${item.qty}x ${item.name}</li>`
+                ).join('');
+                
                 detailsContainer.innerHTML += `
-                    <div class="p-3 border rounded-lg flex justify-between items-center">
-                        <div>
-                            <p class="font-medium">${order.customerName}</p>
-                            <p class="text-xs text-gray-500">${order.createdAt ? order.createdAt.toDate().toLocaleString('id-ID') : ''}</p>
+                    <div class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                        <div class="mb-3 sm:mb-0">
+                            <p class="font-bold text-gray-800">${order.customerName}</p>
+                            <p class="text-xs text-gray-500 mb-1">${order.createdAt ? order.createdAt.toDate().toLocaleString('id-ID') : ''}</p>
+                            <p class="font-bold text-lg text-emerald-600">${formatRupiah(order.total)}</p>
                         </div>
-                        <p class="font-bold text-emerald-600">${formatRupiah(order.total)}</p>
+                        <ul class="list-disc list-inside mb-3 sm:mb-0 sm:mx-4">${itemsHtml}</ul>
+                        <button onclick="showReceiptModal('${order.id}')" class="w-full sm:w-auto bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                            Cetak Struk
+                        </button>
                     </div>
                 `;
             });
         }
+
+        // === BARU: FUNGSI MODAL STRUK ===
+        function showReceiptModal(orderId) {
+            currentOrderForReceipt = allOrders.find(o => o.id === orderId);
+            if (!currentOrderForReceipt) return;
+
+            const order = currentOrderForReceipt;
+            const receiptContent = document.getElementById('receipt-content');
+            
+            // Membuat HTML untuk item
+            const itemsHtml = order.items.map(item => {
+                const itemTotal = (item.price + item.addons.reduce((s, a) => s + a.price, 0)) * item.qty;
+                let addonsHtml = '';
+                if (item.addons.length > 0) {
+                    addonsHtml = `<div class="pl-4 text-xs italic">${item.addons.map(a => `+ ${a.name}`).join('<br>')}</div>`;
+                }
+                return `<tr class="border-t border-dashed border-gray-400">
+                    <td class="py-1" colspan="2">${item.qty}x ${item.name}${addonsHtml}</td>
+                    <td class="py-1 text-right">${formatRupiah(itemTotal)}</td>
+                </tr>`;
+            }).join('');
+
+            // Menyuntikkan HTML struk ke modal
+            receiptContent.innerHTML = `
+                <div class="print-receipt p-2 text-gray-900">
+                    <h3 class="text-2xl font-bold text-center mb-2">KafeKini</h3>
+                    <p class="text-sm text-center">Jl. Kopi Enak No. 123, Jakarta</p>
+                    <div class="border-t border-b border-dashed border-gray-400 my-3 py-2">
+                        <p class="text-sm">No. Pesanan: ${order.id.substring(0, 8).toUpperCase()}</p>
+                        <p class="text-sm">Tanggal: ${order.createdAt ? order.createdAt.toDate().toLocaleString('id-ID') : 'N/A'}</p>
+                        <p class="text-sm">Pelanggan: ${order.customerName}</p>
+                        <p class="text-sm">Layanan: ${order.service}</p>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-dashed border-gray-400">
+                                <th class="pb-1 text-left" colspan="2">ITEM</th>
+                                <th class="pb-1 text-right">TOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsHtml}
+                        </tbody>
+                        <tfoot class="font-medium">
+                            <tr class="border-t border-dashed border-gray-400"><td colspan="2" class="pt-2 text-right">Subtotal:</td><td class="pt-2 text-right">${formatRupiah(order.subtotal)}</td></tr>
+                            <tr><td colspan="2" class="text-right">Biaya Layanan:</td><td class="text-right">${formatRupiah(order.serviceFee)}</td></tr>
+                            <tr><td colspan="2" class="text-right">Biaya Pengantaran:</td><td class="text-right">${formatRupiah(order.deliveryFee)}</td></tr>
+                            <tr class="font-bold text-lg border-t-2 border-gray-400"><td colspan="2" class="pt-1 text-right">TOTAL:</td><td class="pt-1 text-right">${formatRupiah(order.total)}</td></tr>
+                        </tfoot>
+                    </table>
+                    <p class="text-center text-sm mt-4">--- Terima Kasih ---</p>
+                </div>
+            `;
+
+            document.getElementById('print-preview-modal').style.display = 'flex';
+        }
+
+        function closeReceiptModal() {
+            document.getElementById('print-preview-modal').style.display = 'none';
+            currentOrderForReceipt = null;
+        }
+
+        function printReceipt() {
+            // Memanggil fungsi print browser
+            window.print();
+        }
+
 
         // === FUNGSI NOTIFIKASI ADMIN ===
         let adminNotificationTimeout;
@@ -540,5 +709,4 @@
     </script>
 </body>
 </html>
-
 
