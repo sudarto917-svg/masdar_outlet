@@ -14,7 +14,6 @@
             background-color: #10b981; /* emerald-500 */
             color: white;
         }
-        /* Style untuk tombol disabled */
         button:disabled {
             background-color: #d1d5db; /* gray-300 */
             cursor: not-allowed;
@@ -44,7 +43,6 @@
         .print-receipt .border-dashed { border-style: dashed; }
         .print-receipt .border-gray-400 { border-color: #9ca3af; }
 
-        /* Sembunyikan semua elemen KECUALI struk saat mencetak */
         @media print {
             body * {
                 visibility: hidden;
@@ -73,6 +71,13 @@
             .print\:hidden {
                 display: none !important;
             }
+        }
+
+        /* BARU: Style untuk tombol filter laporan */
+        .report-filter-button.active {
+            background-color: #059669; /* emerald-600 */
+            color: white;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -103,7 +108,7 @@
 
         <!-- ===== HALAMAN 1: PESANAN MASUK (Default) ===== -->
         <section id="admin-page-orders" class="admin-page-section active space-y-6">
-            <h2 class="text-2xl font-bold text-gray-800">Pesanan Aktif (Baru & Diproses)</h2>
+            <h2 class="text-2xl font-bold text-gray-800">Pesanan Aktif</h2>
             <div id="orders-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Pesanan akan dimuat di sini oleh JS -->
                 <div id="orders-loading" class="text-center col-span-full py-10 text-gray-500">
@@ -176,24 +181,42 @@
             </div>
         </section>
 
-        <!-- ===== HALAMAN 3: LAPORAN PENJUALAN ===== -->
+        <!-- ===== HALAMAN 3: LAPORAN PENJUALAN (DIROMBAK TOTAL) ===== -->
         <section id="admin-page-reports" class="admin-page-section space-y-6">
-            <h2 class="text-2xl font-bold text-gray-800">Laporan Penjualan</h2>
-            <!-- Ringkasan -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 class="text-2xl font-bold text-gray-800">Laporan & Analisis Penjualan</h2>
+            
+            <!-- BARU: Filter Tanggal -->
+            <div class="bg-white p-4 rounded-2xl shadow-lg flex flex-wrap gap-2 items-center">
+                <span class="text-sm font-medium mr-2">Tampilkan Laporan:</span>
+                <button onclick="runAnalysis('today')" class="report-filter-button py-2 px-4 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200">Hari Ini</button>
+                <button onclick="runAnalysis('this_week')" class="report-filter-button py-2 px-4 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200">Minggu Ini</button>
+                <button onclick="runAnalysis('this_month')" class="report-filter-button py-2 px-4 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200">Bulan Ini</button>
+                <button onclick="runAnalysis('all_time')" class="report-filter-button active py-2 px-4 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200">Semua Waktu</button>
+            </div>
+
+            <!-- BARU: Ringkasan Analisis -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h4 class="text-sm font-medium text-gray-500 uppercase">Total Penjualan (Selesai)</h4>
-                    <p id="report-total-revenue" class="text-4xl font-extrabold text-emerald-600">Rp 0</p>
+                    <h4 class="text-sm font-medium text-gray-500 uppercase">Total Penjualan</h4>
+                    <p id="analysis-total-revenue" class="text-4xl font-extrabold text-emerald-600">Rp 0</p>
                 </div>
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
-                    <h4 class="text-sm font-medium text-gray-500 uppercase">Total Pesanan (Selesai)</h4>
-                    <p id="report-total-orders" class="text-4xl font-extrabold text-gray-900">0</p>
+                    <h4 class="text-sm font-medium text-gray-500 uppercase">Total Pesanan</h4>
+                    <p id="analysis-total-orders" class="text-4xl font-extrabold text-gray-900">0</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h4 class="text-sm font-medium text-gray-500 uppercase">Nilai Rata-rata/Pesanan</h4>
+                    <p id="analysis-avg-order-value" class="text-4xl font-extrabold text-blue-600">Rp 0</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h4 class="text-sm font-medium text-gray-500 uppercase">Item Terlaris</h4>
+                    <p id="analysis-best-seller-item" class="text-2xl lg:text-3xl font-extrabold text-orange-600 truncate">-</p>
                 </div>
             </div>
-            <!-- Detail -->
+
+            <!-- Detail (Konten tetap sama, tapi datanya difilter) -->
             <div class="bg-white p-6 rounded-2xl shadow-lg">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">Riwayat Pesanan Selesai</h3>
-                <!-- BARU: Kontainer untuk daftar pesanan selesai -->
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Riwayat Pesanan (Sesuai Filter)</h3>
                 <div id="report-details-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
                     <!-- Riwayat dimuat di sini oleh JS -->
                 </div>
@@ -207,14 +230,12 @@
         <span id="admin-notification-message"></span>
     </div>
 
-    <!-- ===== BARU: MODAL CETAK STRUK ===== -->
+    <!-- ===== MODAL CETAK STRUK ===== -->
     <div id="print-preview-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" style="display: none;">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
-            <!-- Konten struk akan disuntikkan di sini -->
             <div id="receipt-content" class="p-6">
-                <!-- Contoh: <div class="print-receipt">...</div> -->
+                <!-- Konten struk akan disuntikkan di sini -->
             </div>
-            <!-- Tombol aksi modal (tersembunyi saat print) -->
             <div class="bg-gray-100 p-4 flex justify-end space-x-2 print:hidden">
                 <button onclick="closeReceiptModal()" class="font-medium py-2 px-4 rounded-lg transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">
                     Batal
@@ -237,7 +258,6 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // === KONFIGURASI FIREBASE ===
-        // GANTI DENGAN KONFIGURASI ASLI ANDA
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
             : {
@@ -249,7 +269,7 @@
 
         // Inisialisasi Firebase
         let app, auth, db, userId;
-        let menuCollection, ordersCollection;
+        let menuCollection, ordersCollection; // countersCollection tidak perlu di-listen admin
 
         const dbStatus = document.getElementById('db-status');
         const saveMenuButton = document.getElementById('save-menu-button');
@@ -304,9 +324,9 @@
         // === STATE ADMIN ===
         let currentAdminPage = 'orders';
         let allMenu = [];
-        let allOrders = [];
+        let allOrders = []; // Ini akan menampung SEMUA pesanan
         let editingMenuId = null;
-        let currentOrderForReceipt = null; // BARU: Menyimpan order yg akan dicetak
+        let currentOrderForReceipt = null;
 
         // === Fungsi Global ===
         window.showAdminPage = showAdminPage;
@@ -314,11 +334,10 @@
         window.editMenu = editMenu;
         window.deleteMenu = deleteMenu;
         window.resetMenuForm = resetMenuForm;
-        // BARU: Fungsi untuk modal struk
         window.showReceiptModal = showReceiptModal;
         window.closeReceiptModal = closeReceiptModal;
         window.printReceipt = printReceipt;
-
+        window.runAnalysis = runAnalysis; // BARU: Fungsi laporan
 
         // Format Rupiah
         function formatRupiah(number) {
@@ -343,7 +362,7 @@
             
             currentAdminPage = pageId;
             if (pageId === 'reports') {
-                updateReports(); 
+                runAnalysis('all_time'); // Selalu update report saat tab dibuka
             }
         }
 
@@ -353,16 +372,21 @@
             const q = query(ordersCollection);
 
             onSnapshot(q, (snapshot) => {
-                allOrders = [];
+                allOrders = []; // Reset
                 snapshot.forEach(doc => {
                     allOrders.push({ id: doc.id, ...doc.data() });
                 });
                 
+                // Urutkan semua pesanan sekali saja
                 allOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
                 renderOrdersList();
-                // Selalu update laporan juga, karena data pesanan selesai mungkin berubah
-                updateReports(); 
+                // Update laporan jika sedang di tab laporan
+                if(currentAdminPage === 'reports') {
+                    // Re-run analisis dengan filter aktif saat ini
+                    const activeButton = document.querySelector('.report-filter-button.active');
+                    runAnalysis(activeButton ? activeButton.onclick.toString().match(/'([^']+)'/)[1] : 'all_time');
+                }
 
             }, (error) => {
                 console.error("Gagal memuat pesanan: ", error);
@@ -374,8 +398,23 @@
             const container = document.getElementById('orders-list-container');
             const loadingEl = document.getElementById('orders-loading');
             
-            const activeOrders = allOrders.filter(order => order.status === 'Baru' || order.status === 'Diproses');
+            // DIPERBARUI: Tampilkan juga 'Menunggu Konfirmasi'
+            const activeOrders = allOrders.filter(order => 
+                order.status === 'Baru' || 
+                order.status === 'Diproses' || 
+                order.status === 'Menunggu Konfirmasi'
+            );
             
+            // Urutkan berdasarkan status, lalu nomor antrian
+            activeOrders.sort((a, b) => {
+                const statusOrder = { 'Menunggu Konfirmasi': 1, 'Baru': 2, 'Diproses': 3 };
+                if (statusOrder[a.status] !== statusOrder[b.status]) {
+                    return statusOrder[a.status] - statusOrder[b.status];
+                }
+                // Jika status sama, urutkan berdasarkan nomor antrian (terbaru dulu)
+                return b.queueNumber - a.queueNumber;
+            });
+
             if (activeOrders.length === 0) {
                 loadingEl.style.display = 'block';
                 loadingEl.innerText = "Tidak ada pesanan aktif.";
@@ -388,33 +427,51 @@
 
             activeOrders.forEach(order => {
                 const itemsHtml = order.items.map(item => 
-                    `<li class="text-sm text-gray-600">${item.qty}x ${item.name} ${item.addons.length > 0 ? `(${item.addons.map(a => a.name).join(', ')})` : ''}</li>`
+                    `<li class="text-sm text-gray-600 truncate">${item.qty}x ${item.name} ${item.addons.length > 0 ? `(...)` : ''}</li>`
                 ).join('');
 
-                let statusClass = 'bg-blue-100 text-blue-800';
+                let statusClass = 'bg-blue-100 text-blue-800'; // Baru
+                let statusText = order.status;
                 if (order.status === 'Diproses') statusClass = 'bg-yellow-100 text-yellow-800';
+                if (order.status === 'Menunggu Konfirmasi') {
+                    statusClass = 'bg-red-100 text-red-800';
+                    statusText = 'Perlu Konfirmasi';
+                }
 
                 container.innerHTML += `
-                    <div class="bg-white p-5 rounded-xl shadow-lg">
-                        <div class="flex justify-between items-center mb-2">
-                            <h4 class="font-bold text-gray-800">${order.customerName}</h4>
-                            <span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass}">${order.status}</span>
+                    <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col h-full">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-lg text-gray-800">${order.customerName}</h4>
+                                <span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass}">${statusText}</span>
+                            </div>
+                            <span class="text-4xl font-extrabold text-emerald-600">#${order.queueNumber}</span>
                         </div>
-                        <p class="text-sm text-gray-600">${order.customerPhone} | <span class="font-medium">${order.service}</span></p>
                         <p class="text-sm text-gray-500 mb-3">${order.createdAt ? order.createdAt.toDate().toLocaleString('id-ID') : 'Baru saja'}</p>
                         
-                        <ul class="list-disc list-inside space-y-1 my-3 p-3 bg-gray-50 rounded-lg">${itemsHtml}</ul>
+                        <ul class="list-disc list-inside space-y-1 my-3 p-3 bg-gray-50 rounded-lg flex-grow">${itemsHtml}</ul>
                         
                         <p class="text-xl font-bold text-emerald-600 text-right mb-4">${formatRupiah(order.total)}</p>
 
+                        <!-- BARU: Tombol Hubungi WA -->
+                        <a href="https://wa.me/${order.customerPhone.replace(/^0+/, '')}" target="_blank" class="w-full text-center bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 mb-2">
+                            Hubungi via WA
+                        </a>
+                        
+                        <!-- BARU: Tombol Aksi Dinamis -->
                         <div class="flex space-x-2">
+                            ${order.status === 'Menunggu Konfirmasi' ? `
+                                <button onclick="updateOrderStatus(this, '${order.id}', 'Diproses')" class="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg hover:bg-blue-600">
+                                    Konfirmasi Pembayaran
+                                </button>
+                            ` : ''}
                             ${order.status === 'Baru' ? `
                                 <button onclick="updateOrderStatus(this, '${order.id}', 'Diproses')" class="w-full bg-yellow-500 text-white font-semibold py-2 rounded-lg hover:bg-yellow-600">
                                     Proses Pesanan
                                 </button>
                             ` : ''}
                             ${order.status === 'Diproses' ? `
-                                <button onclick="updateOrderStatus(this, '${order.id}', 'Selesai')" class="w-full bg-green-500 text-white font-semibold py-2 rounded-lg hover:bg-green-600">
+                                <button onclick="updateOrderStatus(this, '${order.id}', 'Selesai')" class="w-full bg-emerald-500 text-white font-semibold py-2 rounded-lg hover:bg-emerald-600">
                                     Selesaikan Pesanan
                                 </button>
                             ` : ''}
@@ -424,7 +481,6 @@
             });
         }
 
-        // DIPERBARUI: Fungsi update status dengan umpan balik tombol
         async function updateOrderStatus(buttonElement, orderId, newStatus) {
             const originalText = buttonElement.innerText;
             buttonElement.disabled = true;
@@ -434,12 +490,9 @@
                 const orderRef = doc(db, ordersCollection.path, orderId);
                 await updateDoc(orderRef, { status: newStatus });
                 showAdminNotification(`Pesanan diperbarui ke ${newStatus}`);
-                // Tidak perlu re-enable tombol, onSnapshot akan menggambar ulang kartunya
-                // (baik mengubah tombolnya atau menghilangkannya jika status='Selesai')
             } catch (e) {
                 console.error("Gagal update status: ", e);
                 showAdminNotification('Gagal update status!', 'error');
-                // Aktifkan kembali tombol HANYA jika gagal, karena onSnapshot tidak akan jalan
                 buttonElement.disabled = false;
                 buttonElement.innerText = originalText;
             }
@@ -573,29 +626,78 @@
             editingMenuId = null;
         }
 
-        // === FUNGSI LAPORAN (REPORTS) ===
-        // DIPERBARUI: Fungsi ini sekarang juga merender daftar pesanan selesai
-        function updateReports() {
-            const completedOrders = allOrders.filter(order => order.status === 'Selesai');
+        // === BARU: FUNGSI LAPORAN (REPORTS) ===
+        function runAnalysis(range) {
+            // Update UI Tombol
+            document.querySelectorAll('.report-filter-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.report-filter-button[onclick="runAnalysis('${range}')"]`).classList.add('active');
             
+            const now = new Date();
+            let startDate = new Date(0); // Awal waktu
+
+            if (range === 'today') {
+                startDate = new Date(now.setHours(0, 0, 0, 0));
+            } else if (range === 'this_week') {
+                const dayOfWeek = now.getDay();
+                startDate = new Date(now.setDate(now.getDate() - dayOfWeek)); // Mulai dari Minggu
+                startDate.setHours(0, 0, 0, 0);
+            } else if (range === 'this_month') {
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                startDate.setHours(0, 0, 0, 0);
+            }
+
+            // 1. Filter pesanan yang selesai DAN dalam jangkauan tanggal
+            const completedOrders = allOrders.filter(order => 
+                order.status === 'Selesai' &&
+                (order.createdAt?.toDate() || new Date(0)) >= startDate
+            );
+
+            // 2. Kalkulasi Analisis
             const totalRevenue = completedOrders.reduce((sum, order) => sum + order.total, 0);
             const totalCompleted = completedOrders.length;
+            const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
+            
+            // Kalkulasi Item Terlaris
+            const itemCounts = {};
+            completedOrders.forEach(order => {
+                order.items.forEach(item => {
+                    itemCounts[item.name] = (itemCounts[item.name] || 0) + item.qty;
+                });
+            });
 
-            document.getElementById('report-total-revenue').innerText = formatRupiah(totalRevenue);
-            document.getElementById('report-total-orders').innerText = totalCompleted;
+            let bestSellerItem = '-';
+            let maxQty = 0;
+            for (const itemName in itemCounts) {
+                if (itemCounts[itemName] > maxQty) {
+                    maxQty = itemCounts[itemName];
+                    bestSellerItem = `${itemName} (${maxQty}x)`;
+                }
+            }
 
-            // BARU: Render daftar pesanan selesai dengan tombol cetak
+            // 3. Update UI Analisis
+            document.getElementById('analysis-total-revenue').innerText = formatRupiah(totalRevenue);
+            document.getElementById('analysis-total-orders').innerText = totalCompleted;
+            document.getElementById('analysis-avg-order-value').innerText = formatRupiah(avgOrderValue);
+            document.getElementById('analysis-best-seller-item').innerText = bestSellerItem;
+
+            // 4. Render ulang daftar riwayat pesanan
+            renderReportDetails(completedOrders);
+        }
+
+        function renderReportDetails(filteredOrders) {
             const detailsContainer = document.getElementById('report-details-container');
             detailsContainer.innerHTML = '';
-            if (completedOrders.length === 0) {
-                detailsContainer.innerHTML = '<p class="text-gray-500">Belum ada pesanan selesai.</p>';
+            if (filteredOrders.length === 0) {
+                detailsContainer.innerHTML = '<p class="text-gray-500">Belum ada pesanan selesai untuk periode ini.</p>';
                 return;
             }
 
             // Urutkan (sudah diurutkan di listenToOrders, tapi kita pastikan lagi)
-            completedOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+            filteredOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
-            completedOrders.forEach(order => {
+            filteredOrders.forEach(order => {
                 const itemsHtml = order.items.map(item => 
                     `<li class="text-xs text-gray-500 truncate">${item.qty}x ${item.name}</li>`
                 ).join('');
@@ -603,7 +705,7 @@
                 detailsContainer.innerHTML += `
                     <div class="bg-gray-50 p-4 rounded-lg shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between">
                         <div class="mb-3 sm:mb-0">
-                            <p class="font-bold text-gray-800">${order.customerName}</p>
+                            <p class="font-bold text-gray-800">${order.customerName} (Antrian #${order.queueNumber})</p>
                             <p class="text-xs text-gray-500 mb-1">${order.createdAt ? order.createdAt.toDate().toLocaleString('id-ID') : ''}</p>
                             <p class="font-bold text-lg text-emerald-600">${formatRupiah(order.total)}</p>
                         </div>
@@ -616,7 +718,7 @@
             });
         }
 
-        // === BARU: FUNGSI MODAL STRUK ===
+        // === FUNGSI MODAL STRUK ===
         function showReceiptModal(orderId) {
             currentOrderForReceipt = allOrders.find(o => o.id === orderId);
             if (!currentOrderForReceipt) return;
@@ -624,7 +726,6 @@
             const order = currentOrderForReceipt;
             const receiptContent = document.getElementById('receipt-content');
             
-            // Membuat HTML untuk item
             const itemsHtml = order.items.map(item => {
                 const itemTotal = (item.price + item.addons.reduce((s, a) => s + a.price, 0)) * item.qty;
                 let addonsHtml = '';
@@ -637,12 +738,12 @@
                 </tr>`;
             }).join('');
 
-            // Menyuntikkan HTML struk ke modal
             receiptContent.innerHTML = `
                 <div class="print-receipt p-2 text-gray-900">
                     <h3 class="text-2xl font-bold text-center mb-2">KafeKini</h3>
                     <p class="text-sm text-center">Jl. Kopi Enak No. 123, Jakarta</p>
                     <div class="border-t border-b border-dashed border-gray-400 my-3 py-2">
+                        <p class="text-sm">No. Antrian: <span class="font-bold text-lg">${order.queueNumber}</span></p>
                         <p class="text-sm">No. Pesanan: ${order.id.substring(0, 8).toUpperCase()}</p>
                         <p class="text-sm">Tanggal: ${order.createdAt ? order.createdAt.toDate().toLocaleString('id-ID') : 'N/A'}</p>
                         <p class="text-sm">Pelanggan: ${order.customerName}</p>
@@ -678,7 +779,6 @@
         }
 
         function printReceipt() {
-            // Memanggil fungsi print browser
             window.print();
         }
 
@@ -704,4 +804,5 @@
     </script>
 </body>
 </html>
+
 
