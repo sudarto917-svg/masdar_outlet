@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - KafeKini</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- BARU: Icon untuk notifikasi (opsional) -->
+    <link rel="icon" type="image/png" href="https://placehold.co/192x192/10b981/FFFFFF?text=K">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -20,7 +22,6 @@
             opacity: 0.7;
         }
         
-        /* CSS untuk Struk (Print) */
         .print-receipt {
             font-family: 'Courier New', Courier, monospace;
             color: #000;
@@ -73,7 +74,6 @@
             }
         }
 
-        /* BARU: Style untuk tombol filter laporan */
         .report-filter-button.active {
             background-color: #059669; /* emerald-600 */
             color: white;
@@ -109,6 +109,11 @@
         <!-- ===== HALAMAN 1: PESANAN MASUK (Default) ===== -->
         <section id="admin-page-orders" class="admin-page-section active space-y-6">
             <h2 class="text-2xl font-bold text-gray-800">Pesanan Aktif</h2>
+            <!-- BARU: Status Izin Notifikasi -->
+            <div id="notification-permission-status" class="p-4 bg-yellow-100 text-yellow-800 rounded-lg" style="display: none;">
+                Izin notifikasi diperlukan untuk memberi tahu Anda tentang pesanan baru.
+                <button onclick="requestNotificationPermission()" class="font-bold underline ml-2">Klik di sini untuk mengizinkan</button>
+            </div>
             <div id="orders-list-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Pesanan akan dimuat di sini oleh JS -->
                 <div id="orders-loading" class="text-center col-span-full py-10 text-gray-500">
@@ -181,11 +186,10 @@
             </div>
         </section>
 
-        <!-- ===== HALAMAN 3: LAPORAN PENJUALAN (DIROMBAK TOTAL) ===== -->
+        <!-- ===== HALAMAN 3: LAPORAN PENJUALAN ===== -->
         <section id="admin-page-reports" class="admin-page-section space-y-6">
             <h2 class="text-2xl font-bold text-gray-800">Laporan & Analisis Penjualan</h2>
             
-            <!-- BARU: Filter Tanggal -->
             <div class="bg-white p-4 rounded-2xl shadow-lg flex flex-wrap gap-2 items-center">
                 <span class="text-sm font-medium mr-2">Tampilkan Laporan:</span>
                 <button onclick="runAnalysis('today')" class="report-filter-button py-2 px-4 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200">Hari Ini</button>
@@ -194,7 +198,6 @@
                 <button onclick="runAnalysis('all_time')" class="report-filter-button active py-2 px-4 rounded-lg transition-colors bg-gray-100 hover:bg-gray-200">Semua Waktu</button>
             </div>
 
-            <!-- BARU: Ringkasan Analisis -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="bg-white p-6 rounded-2xl shadow-lg">
                     <h4 class="text-sm font-medium text-gray-500 uppercase">Total Penjualan</h4>
@@ -214,7 +217,6 @@
                 </div>
             </div>
 
-            <!-- Detail (Konten tetap sama, tapi datanya difilter) -->
             <div class="bg-white p-6 rounded-2xl shadow-lg">
                 <h3 class="text-xl font-bold text-gray-900 mb-4">Riwayat Pesanan (Sesuai Filter)</h3>
                 <div id="report-details-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
@@ -258,18 +260,21 @@
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // === KONFIGURASI FIREBASE ===
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : {
-                apiKey: "AIzaSyDWpnos_9NRj0LVA0J6KBf4bxNtWCXF7Xw", authDomain: "outlet-masdar.firebaseapp.com", projectId: "outlet-masdar", storageBucket: "outlet-masdar.firebasestorage.app", messagingSenderId: "661483386947", appId: "1:661483386947:web:0b2f26c227cb5fe130bcf6"
-              };
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWpnos_9NRj0LVA0J6KBf4bxNtWCXF7Xw",
+            authDomain: "outlet-masdar.firebaseapp.com",
+            projectId: "outlet-masdar",
+            storageBucket: "outlet-masdar.firebasestorage.app",
+            messagingSenderId: "661483386947",
+            appId: "1:661483386947:web:0b2f26c227cb5fe130bcf6"
+        };
         
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = firebaseConfig.projectId;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Inisialisasi Firebase
         let app, auth, db, userId;
-        let menuCollection, ordersCollection; // countersCollection tidak perlu di-listen admin
+        let menuCollection, ordersCollection;
 
         const dbStatus = document.getElementById('db-status');
         const saveMenuButton = document.getElementById('save-menu-button');
@@ -292,6 +297,7 @@
                     
                     listenToOrders();
                     listenToMenu();
+                    requestNotificationPermission(); // BARU: Minta izin notif
 
                     dbStatus.textContent = 'Koneksi database siap!';
                     dbStatus.classList.remove('bg-yellow-50', 'text-yellow-700');
@@ -324,9 +330,10 @@
         // === STATE ADMIN ===
         let currentAdminPage = 'orders';
         let allMenu = [];
-        let allOrders = []; // Ini akan menampung SEMUA pesanan
+        let allOrders = [];
         let editingMenuId = null;
         let currentOrderForReceipt = null;
+        let isFirstOrderLoad = true; // BARU: Flag untuk notifikasi
 
         // === Fungsi Global ===
         window.showAdminPage = showAdminPage;
@@ -337,7 +344,8 @@
         window.showReceiptModal = showReceiptModal;
         window.closeReceiptModal = closeReceiptModal;
         window.printReceipt = printReceipt;
-        window.runAnalysis = runAnalysis; // BARU: Fungsi laporan
+        window.runAnalysis = runAnalysis;
+        window.requestNotificationPermission = requestNotificationPermission; // BARU
 
         // Format Rupiah
         function formatRupiah(number) {
@@ -362,7 +370,7 @@
             
             currentAdminPage = pageId;
             if (pageId === 'reports') {
-                runAnalysis('all_time'); // Selalu update report saat tab dibuka
+                runAnalysis('all_time'); 
             }
         }
 
@@ -372,21 +380,33 @@
             const q = query(ordersCollection);
 
             onSnapshot(q, (snapshot) => {
-                allOrders = []; // Reset
+                allOrders = []; 
                 snapshot.forEach(doc => {
                     allOrders.push({ id: doc.id, ...doc.data() });
                 });
                 
-                // Urutkan semua pesanan sekali saja
+                // BARU: Logika Notifikasi
+                if (!isFirstOrderLoad) {
+                    snapshot.docChanges().forEach(change => {
+                        if (change.type === 'added') {
+                            const newOrder = change.doc.data();
+                            if (newOrder.status === 'Baru' || newOrder.status === 'Menunggu Konfirmasi') {
+                                showDesktopNotification(newOrder);
+                            }
+                        }
+                    });
+                }
+                
                 allOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
                 renderOrdersList();
-                // Update laporan jika sedang di tab laporan
+                
                 if(currentAdminPage === 'reports') {
-                    // Re-run analisis dengan filter aktif saat ini
                     const activeButton = document.querySelector('.report-filter-button.active');
                     runAnalysis(activeButton ? activeButton.onclick.toString().match(/'([^']+)'/)[1] : 'all_time');
                 }
+
+                isFirstOrderLoad = false; // BARU: Set flag setelah load pertama
 
             }, (error) => {
                 console.error("Gagal memuat pesanan: ", error);
@@ -398,20 +418,17 @@
             const container = document.getElementById('orders-list-container');
             const loadingEl = document.getElementById('orders-loading');
             
-            // DIPERBARUI: Tampilkan juga 'Menunggu Konfirmasi'
             const activeOrders = allOrders.filter(order => 
                 order.status === 'Baru' || 
                 order.status === 'Diproses' || 
                 order.status === 'Menunggu Konfirmasi'
             );
             
-            // Urutkan berdasarkan status, lalu nomor antrian
             activeOrders.sort((a, b) => {
                 const statusOrder = { 'Menunggu Konfirmasi': 1, 'Baru': 2, 'Diproses': 3 };
                 if (statusOrder[a.status] !== statusOrder[b.status]) {
                     return statusOrder[a.status] - statusOrder[b.status];
                 }
-                // Jika status sama, urutkan berdasarkan nomor antrian (terbaru dulu)
                 return b.queueNumber - a.queueNumber;
             });
 
@@ -430,13 +447,17 @@
                     `<li class="text-sm text-gray-600 truncate">${item.qty}x ${item.name} ${item.addons.length > 0 ? `(...)` : ''}</li>`
                 ).join('');
 
-                let statusClass = 'bg-blue-100 text-blue-800'; // Baru
+                let statusClass = 'bg-blue-100 text-blue-800'; 
                 let statusText = order.status;
                 if (order.status === 'Diproses') statusClass = 'bg-yellow-100 text-yellow-800';
                 if (order.status === 'Menunggu Konfirmasi') {
                     statusClass = 'bg-red-100 text-red-800';
                     statusText = 'Perlu Konfirmasi';
                 }
+
+                // BARU: Pesan WA otomatis untuk admin
+                const waMsg = encodeURIComponent(`Halo ${order.customerName}, kami dari KafeKini mengenai pesanan Anda (No. Antrian #${order.queueNumber}).`);
+                const waUrl = `https://wa.me/${order.customerPhone.replace(/^0+/, '')}?text=${waMsg}`;
 
                 container.innerHTML += `
                     <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col h-full">
@@ -453,12 +474,11 @@
                         
                         <p class="text-xl font-bold text-emerald-600 text-right mb-4">${formatRupiah(order.total)}</p>
 
-                        <!-- BARU: Tombol Hubungi WA -->
-                        <a href="https://wa.me/${order.customerPhone.replace(/^0+/, '')}" target="_blank" class="w-full text-center bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 mb-2">
+                        <!-- DIPERBARUI: URL WA sekarang dengan pesan otomatis -->
+                        <a href="${waUrl}" target="_blank" class="w-full text-center bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 mb-2">
                             Hubungi via WA
                         </a>
                         
-                        <!-- BARU: Tombol Aksi Dinamis -->
                         <div class="flex space-x-2">
                             ${order.status === 'Menunggu Konfirmasi' ? `
                                 <button onclick="updateOrderStatus(this, '${order.id}', 'Diproses')" class="w-full bg-blue-500 text-white font-semibold py-2 rounded-lg hover:bg-blue-600">
@@ -514,7 +534,7 @@
 
         function renderMenuList() {
             const container = document.getElementById('menu-list-container');
-            container.innerHTML = ''; // Kosongkan
+            container.innerHTML = ''; 
             if (allMenu.length === 0) {
                 container.innerHTML = '<p class="text-gray-500">Belum ada menu.</p>';
                 return;
@@ -626,40 +646,36 @@
             editingMenuId = null;
         }
 
-        // === BARU: FUNGSI LAPORAN (REPORTS) ===
+        // === FUNGSI LAPORAN (REPORTS) ===
         function runAnalysis(range) {
-            // Update UI Tombol
             document.querySelectorAll('.report-filter-button').forEach(btn => {
                 btn.classList.remove('active');
             });
             document.querySelector(`.report-filter-button[onclick="runAnalysis('${range}')"]`).classList.add('active');
             
             const now = new Date();
-            let startDate = new Date(0); // Awal waktu
+            let startDate = new Date(0); 
 
             if (range === 'today') {
                 startDate = new Date(now.setHours(0, 0, 0, 0));
             } else if (range === 'this_week') {
                 const dayOfWeek = now.getDay();
-                startDate = new Date(now.setDate(now.getDate() - dayOfWeek)); // Mulai dari Minggu
+                startDate = new Date(now.setDate(now.getDate() - dayOfWeek)); 
                 startDate.setHours(0, 0, 0, 0);
             } else if (range === 'this_month') {
                 startDate = new Date(now.getFullYear(), now.getMonth(), 1);
                 startDate.setHours(0, 0, 0, 0);
             }
 
-            // 1. Filter pesanan yang selesai DAN dalam jangkauan tanggal
             const completedOrders = allOrders.filter(order => 
                 order.status === 'Selesai' &&
                 (order.createdAt?.toDate() || new Date(0)) >= startDate
             );
 
-            // 2. Kalkulasi Analisis
             const totalRevenue = completedOrders.reduce((sum, order) => sum + order.total, 0);
             const totalCompleted = completedOrders.length;
             const avgOrderValue = totalCompleted > 0 ? totalRevenue / totalCompleted : 0;
             
-            // Kalkulasi Item Terlaris
             const itemCounts = {};
             completedOrders.forEach(order => {
                 order.items.forEach(item => {
@@ -676,13 +692,11 @@
                 }
             }
 
-            // 3. Update UI Analisis
             document.getElementById('analysis-total-revenue').innerText = formatRupiah(totalRevenue);
             document.getElementById('analysis-total-orders').innerText = totalCompleted;
             document.getElementById('analysis-avg-order-value').innerText = formatRupiah(avgOrderValue);
             document.getElementById('analysis-best-seller-item').innerText = bestSellerItem;
 
-            // 4. Render ulang daftar riwayat pesanan
             renderReportDetails(completedOrders);
         }
 
@@ -694,7 +708,6 @@
                 return;
             }
 
-            // Urutkan (sudah diurutkan di listenToOrders, tapi kita pastikan lagi)
             filteredOrders.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
             filteredOrders.forEach(order => {
@@ -783,7 +796,7 @@
         }
 
 
-        // === FUNGSI NOTIFIKASI ADMIN ===
+        // === FUNGSI NOTIFIKASI KUSTOM (POP-UP INTERNAL) ===
         let adminNotificationTimeout;
         function showAdminNotification(message, type = 'success') {
             const notif = document.getElementById('admin-notification');
@@ -799,6 +812,51 @@
             adminNotificationTimeout = setTimeout(() => {
                 notif.style.display = 'none';
             }, 3000);
+        }
+
+        // === BARU: FUNGSI NOTIFIKASI DESKTOP (BROWSER) ===
+        async function requestNotificationPermission() {
+            const statusEl = document.getElementById('notification-permission-status');
+            if (!('Notification' in window)) {
+                console.log("Browser ini tidak mendukung notifikasi desktop.");
+                return;
+            }
+
+            let permission = Notification.permission;
+            
+            if (permission === 'default') {
+                statusEl.style.display = 'block';
+                permission = await Notification.requestPermission();
+            }
+
+            if (permission === 'granted') {
+                statusEl.style.display = 'none';
+                console.log('Izin notifikasi diberikan.');
+                // Tampilkan notif tes
+                const testNotif = new Notification("Notifikasi Aktif!", {
+                    body: "Anda akan diberitahu jika ada pesanan baru.",
+                    icon: "https://placehold.co/192x192/10b981/FFFFFF?text=K"
+                });
+            } else if (permission === 'denied') {
+                statusEl.style.display = 'block';
+                statusEl.innerHTML = 'Anda memblokir notifikasi. Harap izinkan melalui setelan browser untuk mendapat info pesanan baru.';
+            }
+        }
+
+        function showDesktopNotification(order) {
+            if (Notification.permission !== 'granted') return;
+
+            const title = 'Pesanan Baru Masuk!';
+            const body = `No. Antrian #${order.queueNumber} dari ${order.customerName}.\nTotal: ${formatRupiah(order.total)}`;
+            const icon = 'https://placehold.co/192x192/10b981/FFFFFF?text=K'; 
+
+            const notification = new Notification(title, { body, icon });
+
+            // Arahkan ke tab ini ketika notif diklik
+            notification.onclick = (event) => {
+                window.focus(); // Bawa tab ini ke depan
+                notification.close();
+            };
         }
 
     </script>
